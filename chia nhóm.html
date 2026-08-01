@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Quantum Chaos Grouping</title>
+    <style>
+        :root {
+            --neon-cyan: #00f2ff;
+            --neon-blue: #0066ff;
+            --neon-purple: #bc13fe;
+            --bg-dark: #010105;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg-dark);
+            color: #fff;
+            font-family: 'Segoe UI', sans-serif;
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: rgba(5, 10, 30, 0.95);
+            border-right: 1px solid #1a2a4a;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            z-index: 2000;
+            box-shadow: 10px 0 30px rgba(0,0,0,1);
+        }
+
+        textarea {
+            flex-grow: 1;
+            background: #000;
+            color: var(--neon-cyan);
+            border: 1px solid #114466;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            margin-bottom: 15px;
+            font-size: 12px;
+            outline: none;
+        }
+
+        .btn {
+            padding: 14px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            border: 2px solid transparent;
+            margin-bottom: 10px;
+            transition: 0.3s;
+            letter-spacing: 2px;
+        }
+
+        .btn-start { border-color: var(--neon-cyan); color: var(--neon-cyan); background: transparent; }
+        .btn-start:hover { background: var(--neon-cyan); color: #000; box-shadow: 0 0 25px var(--neon-cyan); }
+
+        .btn-export { border-color: #10b981; color: #10b981; background: transparent; opacity: 0.2; pointer-events: none; }
+        .btn-export.active { opacity: 1; pointer-events: auto; }
+
+        /* Universe Canvas */
+        .universe {
+            flex-grow: 1;
+            position: relative;
+            background: radial-gradient(circle at center, #0a1a3a 0%, #010105 100%);
+        }
+
+        /* Group Circles (Planets) */
+        .group-circle {
+            position: absolute;
+            width: 220px;
+            height: 250px;
+            border: 1px dashed rgba(0, 242, 255, 0.4);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(0, 242, 255, 0.03);
+            z-index: 10;
+        }
+
+        .group-title {
+            color: var(--neon-cyan);
+            font-weight: bold;
+            font-size: 15px;
+            margin-top: 15px;
+            text-shadow: 0 0 10px var(--neon-cyan);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* Thẻ tên học sinh */
+        .student-tag {
+            position: absolute;
+            padding: 6px 15px;
+            background: rgba(0, 102, 255, 0.15);
+            border: 1px solid var(--neon-cyan);
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            color: #fff;
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
+            transition: all 1.8s cubic-bezier(0.2, 0.8, 0.2, 1); /* Hiệu ứng bay mượt */
+            z-index: 100;
+            backdrop-filter: blur(4px);
+            pointer-events: none;
+            text-shadow: 0 0 5px #fff;
+        }
+
+        /* Tâm vũ trụ phát sáng */
+        .nebula {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(0, 102, 255, 0.2) 0%, transparent 70%);
+            filter: blur(50px);
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <h2 style="color:var(--neon-cyan); letter-spacing: 2px; text-shadow: 0 0 10px var(--neon-cyan);">QUANTUM HUB</h2>
+    <textarea id="nameInput"></textarea>
+    <button class="btn btn-start" onclick="triggerGrouping()">BẮT ĐẦU</button>
+    <button id="exportBtn" class="btn btn-export" onclick="downloadCSV()">XUẤT DANH SÁCH</button>
+    <p style="color: #445; font-size: 10px; margin-top: auto;">© QUANTUM ASSIGNMENT SYSTEM</p>
+</div>
+
+<div class="universe" id="universe">
+    <div class="nebula"></div>
+</div>
+
+<script>
+    const universe = document.getElementById('universe');
+    let stars = [];
+    let groupResults = [[],[],[],[],[],[]];
+    let chaosTimer;
+
+    // Danh sách 35 học sinh
+    const demoNames = [
+        "Lương Quang Vinh", "Mai Đình Hưng", "Nguyễn Hồng Vượng", "Ngô Quý Khoa", "Đỗ Lương Quốc Trung", "Nguyễn Sơn Hải",
+        "Nguyễn Tiến Hưng", "Đỗ Hải Linh", "Phan Tự Hải Duy", "Trương Thuỳ Linh", "Nguyễn Trà My", "Trương Xuân Hoà",
+        "Nguyễn Thị Diễm Quỳnh", "Nguyễn Minh Chiến", "Ngô Thị Nguyệt Ánh", "Ngô Tài Anh", "Đinh Trần Yến Ngọc", "Nguyễn Thạch Bảo Long",
+        "Dương Danh Quang Vinh", "Lê Nguyễn Thanh Thảo", "Tô Ngọc Huyền", "Đoàn Hoàng Anh", "Nguyễn Minh Quân", "Lê Thảo Linh",
+        "Đỗ Thế Dương", "Trần Thu Lan", "Vũ Quang Vinh", "Trần Hải Đăng", "Bùi Phương Trang", "Hoàng Kỳ Anh",
+        "Phạm Việt Anh", "Hoàng Lê Duy", "Nguyễn Cao Đăng", "Nguyễn Đức Trọng", "Trần Minh Tâm"
+    ];
+    document.getElementById('nameInput').value = demoNames.join('\n');
+
+    function initUniverse() {
+        universe.innerHTML = '<div class="nebula"></div>';
+        const centerX = universe.offsetWidth / 2;
+        const centerY = universe.offsetHeight / 2;
+        
+        // Bố trí 6 Group vòng quanh màn hình
+        const radius = Math.min(centerX, centerY) * 0.75;
+        for (let i = 0; i < 6; i++) {
+            const angle = (i * 60 - 90) * (Math.PI / 180);
+            const x = centerX + radius * 1.2 * Math.cos(angle) - 110;
+            const y = centerY + radius * Math.sin(angle) - 125;
+            
+            const g = document.createElement('div');
+            g.className = 'group-circle';
+            g.id = `group-${i}`;
+            g.style.left = x + 'px';
+            g.style.top = y + 'px';
+            g.innerHTML = `<div class="group-title">GROUP ${i + 1}</div>`;
+            universe.appendChild(g);
+        }
+
+        const names = document.getElementById('nameInput').value.split('\n').filter(n => n.trim());
+        stars = names.map(name => {
+            const el = document.createElement('div');
+            el.className = 'student-tag';
+            el.innerText = name;
+            
+            // Vị trí ngẫu nhiên bất kỳ trên màn hình
+            const rx = Math.random() * (universe.offsetWidth - 150);
+            const ry = Math.random() * (universe.offsetHeight - 50);
+            el.style.left = rx + 'px';
+            el.style.top = ry + 'px';
+            
+            universe.appendChild(el);
+            return { el, name, assigned: false };
+        });
+
+        startChaos();
+    }
+
+    // Hiệu ứng chạy linh tinh khắp màn hình
+    function startChaos() {
+        if (chaosTimer) clearInterval(chaosTimer);
+        chaosTimer = setInterval(() => {
+            stars.forEach(s => {
+                if (!s.assigned) {
+                    const nx = Math.random() * (universe.offsetWidth - 150);
+                    const ny = Math.random() * (universe.offsetHeight - 50);
+                    // Sử dụng transition của CSS để di chuyển mượt
+                    s.el.style.left = nx + 'px';
+                    s.el.style.top = ny + 'px';
+                }
+            });
+        }, 2000); // Mỗi 2 giây đổi mục tiêu bay một lần
+    }
+
+    async function triggerGrouping() {
+        // Dừng trạng thái bay linh tinh
+        clearInterval(chaosTimer);
+        initUniverse(); // Reset lại vị trí nhưng chuẩn bị chia
+        
+        // Dừng bay hỗn loạn ngay lập tức
+        clearInterval(chaosTimer);
+        
+        groupResults = [[],[],[],[],[],[]];
+        document.getElementById('exportBtn').classList.remove('active');
+
+        await new Promise(r => setTimeout(r, 500));
+
+        // Xáo trộn danh sách
+        let pool = [...stars];
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+
+        const counts = [6, 6, 6, 6, 6, 5]; // 35 người
+        let starIdx = 0;
+
+        for (let gIdx = 0; gIdx < 6; gIdx++) {
+            for (let sIdx = 0; sIdx < counts[gIdx]; sIdx++) {
+                const star = pool[starIdx];
+                const groupEl = document.getElementById(`group-${gIdx}`);
+                const gRect = groupEl.getBoundingClientRect();
+                const uRect = universe.getBoundingClientRect();
+
+                star.assigned = true;
+                groupResults[gIdx].push(star.name);
+
+                // Tọa độ đích: Xếp hàng dọc ngay ngắn trong Group
+                const targetX = (gRect.left - uRect.left) + 45;
+                const targetY = (gRect.top - uRect.top) + 60 + (sIdx * 30);
+
+                // Di chuyển từ vị trí "linh tinh" hiện tại về đích
+                star.el.style.left = targetX + 'px';
+                star.el.style.top = targetY + 'px';
+                star.el.style.boxShadow = '0 0 20px var(--neon-cyan)';
+                star.el.style.background = 'rgba(0, 242, 255, 0.1)';
+                
+                starIdx++;
+                await new Promise(r => setTimeout(r, 150)); // Độ trễ giữa các lần bay
+            }
+        }
+        document.getElementById('exportBtn').classList.add('active');
+    }
+
+    function downloadCSV() {
+        let csv = "\ufeffNhóm,Họ và Tên\n";
+        groupResults.forEach((g, i) => {
+            g.forEach(name => csv += `Nhóm ${i + 1},${name}\n`);
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "danh_sach_nhom_quantum.csv";
+        link.click();
+    }
+
+    window.onload = initUniverse;
+</script>
+</body>
+</html>
