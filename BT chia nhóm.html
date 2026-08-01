@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Quantum Grouping - Final Fix</title>
+    <style>
+        :root {
+            --neon-cyan: #00f2ff;
+            --neon-blue: #0066ff;
+            --bg-dark: #010208;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            background: var(--bg-dark);
+            color: #fff;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar cố định bên trái */
+        .sidebar {
+            width: 300px;
+            background: rgba(5, 5, 20, 0.98);
+            border-right: 1px solid #1a2a4a;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            z-index: 2000;
+            box-shadow: 10px 0 30px #000;
+            flex-shrink: 0;
+        }
+
+        h2 { color: var(--neon-cyan); letter-spacing: 3px; text-shadow: 0 0 15px var(--neon-cyan); margin: 0 0 20px 0; text-align: center; }
+
+        textarea {
+            flex-grow: 1;
+            background: #000;
+            color: var(--neon-cyan);
+            border: 1px solid #114466;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: 'Consolas', monospace;
+            margin-bottom: 20px;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .btn {
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            border: 2px solid transparent;
+            margin-bottom: 12px;
+            transition: 0.3s;
+            letter-spacing: 2px;
+        }
+
+        .btn-start { border-color: var(--neon-cyan); color: var(--neon-cyan); background: transparent; }
+        .btn-start:hover { background: var(--neon-cyan); color: #000; box-shadow: 0 0 30px var(--neon-cyan); }
+
+        .btn-export { border-color: #10b981; color: #10b981; background: transparent; opacity: 0.2; pointer-events: none; }
+        .btn-export.active { opacity: 1; pointer-events: auto; }
+
+        /* Khu vực hiển thị - Cho phép cuộn để không mất tên Group */
+        .universe-scroll {
+            flex-grow: 1;
+            overflow-y: auto; /* Cho phép cuộn dọc nếu màn hình thấp */
+            overflow-x: hidden;
+            background: radial-gradient(circle at center, #0a1a3a 0%, #010208 100%);
+            position: relative;
+        }
+
+        .universe-content {
+            display: flex;
+            justify-content: center;
+            padding-top: 80px; /* Khoảng cách an toàn để Group 1,2,3 không bị dính nóc */
+            padding-bottom: 80px; /* Khoảng cách an toàn cho Group 4,5,6 */
+            min-height: 100%;
+            position: relative;
+        }
+
+        /* Container lưới 3 cột */
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(3, 300px);
+            grid-template-rows: repeat(2, 420px);
+            gap: 60px 40px;
+            position: relative;
+        }
+
+        .group-box {
+            width: 300px;
+            height: 420px;
+            border: 1px dashed rgba(0, 242, 255, 0.4);
+            border-radius: 20px;
+            background: rgba(0, 242, 255, 0.03);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .group-title {
+            color: var(--neon-cyan);
+            font-weight: bold;
+            font-size: 1.4rem;
+            margin-top: 20px;
+            text-shadow: 0 0 15px var(--neon-cyan);
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            z-index: 999;
+        }
+
+        /* Thẻ học sinh */
+        .student-tag {
+            position: absolute;
+            padding: 8px 15px;
+            background: rgba(0, 102, 255, 0.2);
+            border: 1px solid var(--neon-cyan);
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            color: #fff;
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
+            transition: all 1.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+            z-index: 100;
+            backdrop-filter: blur(5px);
+            width: 220px;
+            text-align: center;
+            text-shadow: 0 0 5px #fff;
+        }
+
+        .nebula {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(0, 242, 255, 0.1) 0%, transparent 70%);
+            filter: blur(80px);
+            z-index: 1;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>QUANTUM HUB</h2>
+    <textarea id="nameInput" placeholder="Nhập tên học sinh..."></textarea>
+    <button class="btn btn-start" onclick="triggerSequence()">BẮT ĐẦU</button>
+    <button id="exportBtn" class="btn btn-export" onclick="downloadCSV()">XUẤT DANH SÁCH</button>
+</div>
+
+<div class="universe-scroll">
+    <div class="universe-content" id="universe">
+        <div class="nebula"></div>
+        <div class="grid-container" id="grid">
+            <!-- Sinh Group tại đây -->
+        </div>
+    </div>
+</div>
+
+<script>
+    const grid = document.getElementById('grid');
+    const universe = document.getElementById('universe');
+    let stars = [];
+    let results = [[],[],[],[],[],[]];
+    let chaosTimer;
+
+    const demoNames = ["Lương Quang Vinh", "Mai Đình Hưng", "Nguyễn Hồng Vượng", "Ngô Quý Khoa", "Đỗ Lương Quốc Trung", "Nguyễn Sơn Hải", "Nguyễn Tiến Hưng", "Đỗ Hải Linh", "Phan Tự Hải Duy", "Trương Thuỳ Linh", "Nguyễn Trà My", "Trương Xuân Hoà", "Nguyễn Thị Diễm Quỳnh", "Nguyễn Minh Chiến", "Ngô Thị Nguyệt Ánh", "Ngô Tài Anh", "Đinh Trần Yến Ngọc", "Nguyễn Thạch Bảo Long", "Dương Danh Quang Vinh", "Lê Nguyễn Thanh Thảo", "Tô Ngọc Huyền", "Đoàn Hoàng Anh", "Nguyễn Minh Quân", "Lê Thảo Linh", "Đỗ Thế Dương", "Trần Thu Lan", "Vũ Quang Vinh", "Trần Hải Đăng", "Bùi Phương Trang", "Hoàng Kỳ Anh", "Phạm Việt Anh", "Hoàng Lê Duy", "Nguyễn Cao Đăng", "Nguyễn Đức Trọng", "Trần Minh Tâm"];
+    document.getElementById('nameInput').value = demoNames.join('\n');
+
+    function setupLayout() {
+        grid.innerHTML = '';
+        for (let i = 0; i < 6; i++) {
+            const g = document.createElement('div');
+            g.className = 'group-box';
+            g.id = `group-${i}`;
+            g.innerHTML = `<div class="group-title">GROUP ${i + 1}</div>`;
+            grid.appendChild(g);
+        }
+
+        const names = document.getElementById('nameInput').value.split('\n').filter(n => n.trim());
+        const oldTags = document.querySelectorAll('.student-tag');
+        oldTags.forEach(t => t.remove());
+
+        stars = names.map(name => {
+            const el = document.createElement('div');
+            el.className = 'student-tag';
+            el.innerText = name.toUpperCase();
+            
+            // Tọa độ spawn ban đầu (linh tinh)
+            const rx = Math.random() * (universe.offsetWidth - 250);
+            const ry = Math.random() * (universe.offsetHeight - 50);
+            el.style.left = rx + 'px';
+            el.style.top = ry + 'px';
+            universe.appendChild(el);
+            return { el, name, assigned: false };
+        });
+
+        startChaos();
+    }
+
+    function startChaos() {
+        if (chaosTimer) clearInterval(chaosTimer);
+        chaosTimer = setInterval(() => {
+            stars.forEach(s => {
+                if (!s.assigned) {
+                    const nx = Math.random() * (universe.offsetWidth - 220);
+                    const ny = Math.random() * (universe.offsetHeight - 50);
+                    s.el.style.left = nx + 'px';
+                    s.el.style.top = ny + 'px';
+                }
+            });
+        }, 2000);
+    }
+
+    async function triggerSequence() {
+        clearInterval(chaosTimer);
+        chaosTimer = setInterval(() => {
+            stars.forEach(s => {
+                if (!s.assigned) {
+                    const nx = Math.random() * (universe.offsetWidth - 220);
+                    const ny = Math.random() * (universe.offsetHeight - 50);
+                    s.el.style.left = nx + 'px';
+                    s.el.style.top = ny + 'px';
+                    s.el.style.transform = `scale(1.1) rotate(${(Math.random()-0.5)*40}deg)`;
+                }
+            });
+        }, 300);
+
+        await new Promise(r => setTimeout(r, 2000));
+
+        clearInterval(chaosTimer);
+        results = [[],[],[],[],[],[]];
+        document.getElementById('exportBtn').classList.remove('active');
+
+        let pool = [...stars];
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+
+        const counts = [6, 6, 6, 6, 6, 5];
+        let currentIdx = 0;
+
+        for (let gIdx = 0; gIdx < 6; gIdx++) {
+            const groupEl = document.getElementById(`group-${gIdx}`);
+            const gRect = groupEl.getBoundingClientRect();
+            const uRect = universe.getBoundingClientRect();
+
+            for (let sIdx = 0; sIdx < counts[gIdx]; sIdx++) {
+                const star = pool[currentIdx];
+                star.assigned = true;
+                results[gIdx].push(star.name);
+
+                // Tọa độ đích chính xác bên trong Group
+                const targetX = (gRect.left - uRect.left) + 40;
+                const targetY = (gRect.top - uRect.top) + 90 + (sIdx * 48);
+
+                star.el.style.transform = `rotate(0deg) scale(1)`;
+                star.el.style.left = targetX + 'px';
+                star.el.style.top = targetY + 'px';
+                star.el.style.background = 'rgba(0, 242, 255, 0.15)';
+                
+                currentIdx++;
+                await new Promise(r => setTimeout(r, 120)); 
+            }
+        }
+        document.getElementById('exportBtn').classList.add('active');
+    }
+
+    function downloadCSV() {
+        let csv = "\ufeffGROUP,HỌ TÊN\n";
+        results.forEach((g, i) => g.forEach(n => csv += `GROUP ${i + 1},${n.toUpperCase()}\n`));
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "Ket_Qua_Chia_Nhom_Quantum.csv";
+        link.click();
+    }
+
+    window.onload = setupLayout;
+</script>
+</body>
+</html>
